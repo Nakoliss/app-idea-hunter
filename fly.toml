@@ -1,0 +1,38 @@
+# Fly.io deployment configuration for App Idea Hunter
+app = "app-idea-hunter"
+primary_region = "ord"
+
+[build]
+
+[env]
+  ENVIRONMENT = "production"
+  LOG_LEVEL = "INFO"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "30s"
+  method = "GET"
+  timeout = "5s"
+  path = "/health"
+
+[vm]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
+
+[[mounts]]
+  source = "app_idea_hunter_data"
+  destination = "/data"
+
+# Cron job for daily scraping at 2 AM UTC
+[[cron]]
+  schedule = "0 2 * * *"
+  command = "python -c 'import asyncio; from app.scrapers.scheduler import run_daily_scraping; asyncio.run(run_daily_scraping())'"
