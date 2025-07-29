@@ -55,10 +55,12 @@ if os.path.exists("static"):
 # Include API routes
 app.include_router(ideas.router)
 app.include_router(scraping.router)
-app.include_router(web.router)
 
 
-# Root route is handled by web.router
+@app.get("/")
+async def root():
+    """Health check endpoint"""
+    return {"message": "App Idea Hunter is running", "status": "healthy"}
 
 
 @app.get("/health")

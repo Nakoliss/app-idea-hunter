@@ -26,8 +26,8 @@ class DatabaseManager:
         try:
             # Create async engine with connection pooling
             self.engine = create_async_engine(
-                settings.database_url,
-                echo=settings.database_echo,
+                settings.DATABASE_URL,
+                echo=settings.DATABASE_ECHO,
                 poolclass=NullPool,  # Use NullPool for serverless environments
                 pool_pre_ping=True,  # Test connections before using
             )
