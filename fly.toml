@@ -34,5 +34,5 @@ primary_region = "ord"
 
 # Cron job for daily scraping at 2 AM UTC
 [[cron]]
-  schedule = "0 2 * * *"
-  command = "python -c 'import asyncio; from app.scrapers.scheduler import run_daily_scraping; asyncio.run(run_daily_scraping())'"
+  schedule = "0 2 * * *" 
+  command = "python -c 'import asyncio; from app.services.scheduler import scheduler; asyncio.run(scheduler.run_scheduled_scraping())'"

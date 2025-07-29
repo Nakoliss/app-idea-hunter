@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div x-data="dashboard()" class="space-y-6">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-xl font-semibold mb-4">Dashboard</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-blue-50 p-4 rounded-lg">
+                <h3 class="font-semibold text-blue-800">Total Ideas</h3>
+                <p class="text-2xl font-bold text-blue-600" x-text="stats.total_ideas">0</p>
+            </div>
+            <div class="bg-green-50 p-4 rounded-lg">
+                <h3 class="font-semibold text-green-800">Favorites</h3>
+                <p class="text-2xl font-bold text-green-600" x-text="stats.total_favorites">0</p>
+            </div>
+            <div class="bg-purple-50 p-4 rounded-lg">
+                <h3 class="font-semibold text-purple-800">Avg Overall Score</h3>
+                <p class="text-2xl font-bold text-purple-600" x-text="stats.average_scores?.overall">0</p>
+            </div>
+        </div>
+        
+        <button 
+            @click="runScraping()"
+            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            :disabled="isScrapingRunning"
+        >
+            <span x-show="!isScrapingRunning">Run Scraping</span>
+            <span x-show="isScrapingRunning">Scraping...</span>
+        </button>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-xl font-semibold mb-4">Generated Ideas</h2>
+        
+        <div class="mb-4 flex space-x-4">
+            <select x-model="sortBy" @change="loadIdeas()" class="border rounded px-3 py-2">
+                <option value="generated_at">Sort by Date</option>
+                <option value="score_overall">Sort by Overall Score</option>
+                <option value="score_market">Sort by Market Score</option>
+            </select>
+            
+            <label class="flex items-center">
+                <input type="checkbox" x-model="favoriteOnly" @change="loadIdeas()" class="mr-2">
+                Favorites Only
+            </label>
+        </div>
+        
+        <div class="space-y-4">
+            <template x-for="idea in ideas" :key="idea.id">
+                <div class="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="font-semibold text-lg" x-text="idea.idea_text"></h3>
+                        <button 
+                            @click="toggleFavorite(idea.id)"
+                            class="text-red-500 hover:text-red-700"
+                            :class="{'text-red-700': idea.is_favorite}"
+                        >
+                            <span x-show="idea.is_favorite">♥</span>
+                            <span x-show="!idea.is_favorite">♡</span>
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-6 gap-2 text-sm mb-2">
+                        <div class="bg-blue-100 p-2 rounded text-center">
+                            <div class="font-semibold">Market</div>
+                            <div x-text="idea.score_market"></div>
+                        </div>
+                        <div class="bg-green-100 p-2 rounded text-center">
+                            <div class="font-semibold">Tech</div>
+                            <div x-text="idea.score_tech"></div>
+                        </div>
+                        <div class="bg-yellow-100 p-2 rounded text-center">
+                            <div class="font-semibold">Competition</div>
+                            <div x-text="idea.score_competition"></div>
+                        </div>
+                        <div class="bg-purple-100 p-2 rounded text-center">
+                            <div class="font-semibold">Monetization</div>
+                            <div x-text="idea.score_monetisation"></div>
+                        </div>
+                        <div class="bg-indigo-100 p-2 rounded text-center">
+                            <div class="font-semibold">Feasibility</div>
+                            <div x-text="idea.score_feasibility"></div>
+                        </div>
+                        <div class="bg-red-100 p-2 rounded text-center">
+                            <div class="font-semibold">Overall</div>
+                            <div x-text="idea.score_overall"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-sm text-gray-600 mb-2">
+                        <strong>Original Complaint:</strong>
+                        <p x-text="idea.complaint?.content.substring(0, 200) + '...'"></p>
+                        <p class="text-xs">Source: <span x-text="idea.complaint?.source"></span></p>
+                    </div>
+                </div>
+            </template>
+        </div>
+        
+        <div x-show="ideas.length === 0" class="text-center text-gray-500 py-8">
+            No ideas found. Run scraping to generate new ideas.
+        </div>
+    </div>
+</div>
+
+<script>
+function dashboard() {
+    return {
+        ideas: [],
+        stats: {},
+        sortBy: 'generated_at',
+        favoriteOnly: false,
+        isScrapingRunning: false,
+        
+        async init() {
+            await this.loadStats();
+            await this.loadIdeas();
+        },
+        
+        async loadStats() {
+            try {
+                const response = await fetch('/ideas/stats/summary');
+                this.stats = await response.json();
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        },
+        
+        async loadIdeas() {
+            try {
+                const params = new URLSearchParams({
+                    sort_by: this.sortBy,
+                    favorite_only: this.favoriteOnly
+                });
+                const response = await fetch(`/ideas/?${params}`);
+                const data = await response.json();
+                this.ideas = data.ideas;
+            } catch (error) {
+                console.error('Error loading ideas:', error);
+            }
+        },
+        
+        async toggleFavorite(ideaId) {
+            try {
+                const response = await fetch(`/ideas/${ideaId}/favorite`, {
+                    method: 'PUT'
+                });
+                const result = await response.json();
+                
+                // Update local state
+                const idea = this.ideas.find(i => i.id === ideaId);
+                if (idea) {
+                    idea.is_favorite = result.is_favorite;
+                }
+                
+                await this.loadStats();
+            } catch (error) {
+                console.error('Error toggling favorite:', error);
+            }
+        },
+        
+        async runScraping() {
+            this.isScrapingRunning = true;
+            try {
+                const response = await fetch('/scraping/run', {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    alert('Scraping started! Check back in a few minutes for new ideas.');
+                    // Reload data after a delay
+                    setTimeout(async () => {
+                        await this.loadStats();
+                        await this.loadIdeas();
+                        this.isScrapingRunning = false;
+                    }, 60000); // 1 minute delay
+                } else {
+                    throw new Error('Failed to start scraping');
+                }
+            } catch (error) {
+                console.error('Error running scraping:', error);
+                alert('Error starting scraping process');
+                this.isScrapingRunning = false;
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

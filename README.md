@@ -62,15 +62,29 @@ fly deploy
 
 ## Features
 
-- ✅ FastAPI application structure
-- ✅ Environment configuration with python-dotenv
-- ✅ JSON structured logging
-- ✅ Docker containerization
-- ✅ Fly.io deployment configuration with scale-to-zero
-- ✅ Automated daily scraping via cron (2 AM UTC)
+- ✅ **Automated Scraping**: Reddit posts/comments and Google Play reviews (1-3 stars)
+- ✅ **Sentiment Analysis**: VADER sentiment filtering (< -0.3 threshold)
+- ✅ **Deduplication**: SHA-1 hash-based duplicate detection (first 120 tokens)
+- ✅ **AI Idea Generation**: OpenAI GPT-3.5 with structured scoring (6 metrics)
+- ✅ **Cost Monitoring**: Token usage tracking with CI/CD cost guards
+- ✅ **Web Dashboard**: HTMX + Alpine.js interface with pagination and favorites
+- ✅ **Export Functions**: PDF and CSV export of filtered ideas
+- ✅ **Database Models**: SQLModel with Supabase/PostgreSQL support
+- ✅ **Error Handling**: Comprehensive logging and graceful degradation
+- ✅ **Deployment Ready**: Fly.io with scale-to-zero and cron scheduling
+
+## API Endpoints
+
+- `GET /`: Dashboard web interface
+- `GET /ideas/`: Paginated ideas with filtering (favorites, min score, sorting)
+- `PUT /ideas/{id}/favorite`: Toggle favorite status
+- `POST /scraping/run`: Manual scraping trigger
+- `GET /scraping/status`: Scraping statistics and cost monitoring
+- `GET /health`: Health check for monitoring
 
 ## Cost Monitoring
 
-- Target cost: ~$0.002 per complaint processed
-- Cost guard: CI fails if mean tokens per complaint > 600
-- Monthly target: Under $5 for solo usage
+- **Target**: ~$0.002 per complaint processed (GPT-3.5 pricing)
+- **Cost Guard**: CI fails if mean tokens per complaint > 600
+- **Daily Limit**: $100 daily spending cap
+- **Monthly Target**: Under $5 for solo usage with scale-to-zero

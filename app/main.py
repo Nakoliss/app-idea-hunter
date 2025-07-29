@@ -11,6 +11,8 @@ from fastapi.templating import Jinja2Templates
 
 from app.config import get_settings
 from app.logging_config import setup_logging
+from app.database import db_manager
+from app.routes import ideas, scraping
 
 
 @asynccontextmanager
@@ -21,10 +23,14 @@ async def lifespan(app: FastAPI):
     logger = logging.getLogger(__name__)
     logger.info("App Idea Hunter starting up")
     
+    # Initialize database
+    await db_manager.initialize()
+    
     yield
     
     # Shutdown
     logger.info("App Idea Hunter shutting down")
+    await db_manager.close()
 
 
 # Initialize FastAPI app
@@ -44,6 +50,10 @@ templates = Jinja2Templates(directory="templates")
 # Mount static files (if needed later)
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Include API routes
+app.include_router(ideas.router)
+app.include_router(scraping.router)
 
 
 @app.get("/")

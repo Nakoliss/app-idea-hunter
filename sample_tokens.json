@@ -1,0 +1,42 @@
+[
+  {
+    "timestamp": "2024-01-01T10:00:00",
+    "complaint_length": 85,
+    "tokens_used": 420,
+    "cost": 0.00084,
+    "idea_generated": true,
+    "tokens_per_char": 4.94
+  },
+  {
+    "timestamp": "2024-01-01T10:05:00",
+    "complaint_length": 120,
+    "tokens_used": 480,
+    "cost": 0.00096,
+    "idea_generated": true,
+    "tokens_per_char": 4.0
+  },
+  {
+    "timestamp": "2024-01-01T10:10:00",
+    "complaint_length": 95,
+    "tokens_used": 390,
+    "cost": 0.00078,
+    "idea_generated": true,
+    "tokens_per_char": 4.11
+  },
+  {
+    "timestamp": "2024-01-01T10:15:00",
+    "complaint_length": 150,
+    "tokens_used": 550,
+    "cost": 0.0011,
+    "idea_generated": true,
+    "tokens_per_char": 3.67
+  },
+  {
+    "timestamp": "2024-01-01T10:20:00",
+    "complaint_length": 75,
+    "tokens_used": 380,
+    "cost": 0.00076,
+    "idea_generated": true,
+    "tokens_per_char": 5.07
+  }
+]

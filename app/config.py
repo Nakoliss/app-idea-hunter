@@ -13,23 +13,32 @@ class Settings(BaseSettings):
     """Application settings with environment variable support"""
     
     # Database
-    database_url: str = Field(
+    DATABASE_URL: str = Field(
         default="sqlite:///offline.db",
-        description="Database connection URL"
+        description="Database connection URL",
+        alias="database_url"
     )
-    supabase_url: Optional[str] = Field(
-        default=None,
-        description="Supabase project URL"
+    DATABASE_ECHO: bool = Field(
+        default=False,
+        description="Echo SQL queries for debugging",
+        alias="database_echo"
     )
-    supabase_service_key: Optional[str] = Field(
+    SUPABASE_URL: Optional[str] = Field(
         default=None,
-        description="Supabase service role key"
+        description="Supabase project URL",
+        alias="supabase_url"
+    )
+    SUPABASE_KEY: Optional[str] = Field(
+        default=None,
+        description="Supabase service role key",
+        alias="supabase_service_key"
     )
     
     # OpenAI
-    openai_api_key: Optional[str] = Field(
+    OPENAI_API_KEY: Optional[str] = Field(
         default=None,
-        description="OpenAI API key for GPT-3.5"
+        description="OpenAI API key for GPT-3.5",
+        alias="openai_api_key"
     )
     
     # Application
@@ -68,3 +77,7 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get cached settings instance"""
     return Settings()
+
+
+# Global settings instance
+settings = get_settings()
