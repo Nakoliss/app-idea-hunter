@@ -8,6 +8,7 @@ python-multipart==0.0.6
 sqlmodel==0.0.14
 supabase==2.0.2
 psycopg2-binary==2.9.9
+asyncpg==0.29.0
 
 # HTTP client for scraping
 httpx==0.25.2
