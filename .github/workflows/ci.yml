@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master" ]
 
 jobs:
   build-and-deploy:
@@ -34,7 +34,7 @@ jobs:
         run: pytest -q
 
       - name: Deploy to Fly.io (main branch only)
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/master'
         uses: superfly/flyctl-actions@v1
         with:
           args: "deploy --remote-only"

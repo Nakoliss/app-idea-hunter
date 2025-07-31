@@ -9,12 +9,12 @@ from app.logging_config import logger
 class SentimentAnalyzer:
     """Service for analyzing sentiment of text using VADER"""
     
-    def __init__(self, threshold: float = -0.3):
+    def __init__(self, threshold: float = -0.1):
         """
         Initialize sentiment analyzer
         
         Args:
-            threshold: Sentiment score threshold for filtering (default: -0.3)
+            threshold: Sentiment score threshold for filtering (default: -0.1, loosened to allow more content)
         """
         self.analyzer = SentimentIntensityAnalyzer()
         self.threshold = threshold
@@ -58,6 +58,25 @@ class SentimentAnalyzer:
             logger.debug(f"Negative complaint detected with score {score}")
         
         return is_negative
+
+    def is_idea_or_request(self, text: str) -> bool:
+        """
+        Check if text contains an idea or feature request based on keywords
+        
+        Args:
+            text: Text to analyze
+            
+        Returns:
+            True if text contains idea or request keywords
+        """
+        idea_keywords = ["i wish", "would be great", "should have", "needs to", "if only", "please add", "can you add", "hope they add", "is there an app", "can someone make", "why isn’t there"]
+        text_lower = text.lower()
+        is_idea = any(keyword in text_lower for keyword in idea_keywords)
+        
+        if is_idea:
+            logger.debug(f"Idea or feature request detected in text")
+        
+        return is_idea
     
     def batch_analyze(self, texts: list[str]) -> list[tuple[str, float, bool]]:
         """

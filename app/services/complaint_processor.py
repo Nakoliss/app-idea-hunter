@@ -72,9 +72,18 @@ class ComplaintProcessor:
             # Step 1: Sentiment analysis
             sentiment_score = self.sentiment_analyzer.analyze(content)
             
-            if not self.sentiment_analyzer.is_negative_complaint(content):
-                logger.debug(f"Complaint filtered out - positive sentiment: {sentiment_score}")
+            is_negative = self.sentiment_analyzer.is_negative_complaint(content)
+            is_idea = self.sentiment_analyzer.is_idea_or_request(content)
+            
+            if not (is_negative or is_idea):
+                logger.debug(f"Complaint filtered out - neither negative nor idea: {sentiment_score}")
                 return None
+            
+            # Update metadata with idea flag if available
+            if metadata is not None:
+                metadata['is_idea'] = is_idea
+            else:
+                metadata = {'is_idea': is_idea}
             
             # Step 2: Deduplication
             content_hash = self.deduplication_service.generate_hash(content)
@@ -94,7 +103,7 @@ class ComplaintProcessor:
                 scraped_at=datetime.utcnow()
             )
             
-            logger.debug(f"Complaint processed successfully - Hash: {content_hash}, Sentiment: {sentiment_score}")
+            logger.debug(f"Complaint processed successfully - Hash: {content_hash}, Sentiment: {sentiment_score}, Idea: {is_idea}")
             return complaint
             
         except Exception as e:
@@ -107,30 +116,29 @@ class ComplaintProcessor:
         session: Optional[AsyncSession] = None
     ) -> Tuple[List[Complaint], dict]:
         """
-        Process multiple complaints in batch
+        Process a batch of complaints
         
         Args:
-            complaints_data: List of dicts with keys: content, source, source_url, metadata
-            session: Optional database session to load existing hashes
+            complaints_data: List of complaint dictionaries
+            session: Optional database session for loading existing hashes
             
         Returns:
-            Tuple of (processed complaints list, statistics dict)
+            Tuple of (processed complaints list, statistics dictionary)
         """
         stats = {
             'total': len(complaints_data),
             'processed': 0,
             'filtered_sentiment': 0,
             'filtered_duplicate': 0,
+            'filtered_idea': 0,
             'errors': 0
         }
+        logger.info(f"Starting batch processing of {stats['total']} complaints")
         
         # Load existing hashes if session provided
-        existing_hashes = set()
-        if session:
-            existing_hashes = await self.load_existing_hashes(session)
+        existing_hashes = await self.load_existing_hashes(session) if session else set()
+        batch_hashes = set()
         
-        # Track new hashes in this batch
-        batch_hashes = existing_hashes.copy()
         processed_complaints = []
         
         for data in complaints_data:
@@ -147,13 +155,22 @@ class ComplaintProcessor:
                 
                 # Check sentiment
                 sentiment_score = self.sentiment_analyzer.analyze(content)
-                if not self.sentiment_analyzer.is_negative_complaint(content):
+                is_negative = self.sentiment_analyzer.is_negative_complaint(content)
+                is_idea = self.sentiment_analyzer.is_idea_or_request(content)
+                
+                if not (is_negative or is_idea):
                     stats['filtered_sentiment'] += 1
                     continue
                 
+                # Update metadata with idea flag
+                if metadata is not None:
+                    metadata['is_idea'] = is_idea
+                else:
+                    metadata = {'is_idea': is_idea}
+                
                 # Check duplicate
                 content_hash = self.deduplication_service.generate_hash(content)
-                if content_hash in batch_hashes:
+                if content_hash in batch_hashes or content_hash in existing_hashes:
                     stats['filtered_duplicate'] += 1
                     continue
                 
@@ -171,20 +188,14 @@ class ComplaintProcessor:
                 processed_complaints.append(complaint)
                 batch_hashes.add(content_hash)
                 stats['processed'] += 1
+                if is_idea:
+                    stats['filtered_idea'] += 1
                 
             except Exception as e:
                 logger.error(f"Error processing complaint in batch: {str(e)}")
                 stats['errors'] += 1
         
-        logger.info(
-            f"Batch processing completed - "
-            f"Total: {stats['total']}, "
-            f"Processed: {stats['processed']}, "
-            f"Filtered (sentiment): {stats['filtered_sentiment']}, "
-            f"Filtered (duplicate): {stats['filtered_duplicate']}, "
-            f"Errors: {stats['errors']}"
-        )
-        
+        logger.info(f"Batch processing completed - Total: {stats['total']}, Processed: {stats['processed']}, Filtered (sentiment): {stats['filtered_sentiment']}, Filtered (duplicate): {stats['filtered_duplicate']}, Ideas: {stats['filtered_idea']}, Errors: {stats['errors']}")
         return processed_complaints, stats
     
     def reset_cache(self):

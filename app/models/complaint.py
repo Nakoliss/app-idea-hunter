@@ -14,4 +14,4 @@ class Complaint(SQLModel, table=True):
     content_hash: str = Field(max_length=40, unique=True, nullable=False)
     sentiment_score: Optional[float] = None
     scraped_at: datetime = Field(default_factory=datetime.utcnow)
-    metadata: Optional[Dict] = Field(default=None, sa_column=Column(JSON))
+    extra_data: Optional[Dict] = Field(default=None, sa_column=Column(JSON))

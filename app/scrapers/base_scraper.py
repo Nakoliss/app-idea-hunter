@@ -23,8 +23,8 @@ class BaseScraper(ABC):
             source_name: Name of the source (e.g., 'reddit', 'google_play')
         """
         self.source_name = source_name
-        self.max_retries = settings.max_retries
-        self.timeout = settings.request_timeout
+        self.max_retries = settings.MAX_RETRIES
+        self.timeout = settings.REQUEST_TIMEOUT
         self.user_agents = [
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",

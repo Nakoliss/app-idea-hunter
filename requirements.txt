@@ -11,7 +11,7 @@ psycopg2-binary==2.9.9
 asyncpg==0.29.0
 
 # HTTP client for scraping
-httpx==0.25.2
+httpx>=0.24.0,<0.25.0
 
 # Configuration and environment
 python-dotenv==1.0.0

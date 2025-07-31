@@ -21,14 +21,24 @@ class RedditScraper(BaseScraper):
         """
         super().__init__("reddit")
         self.subreddits = subreddits or [
-            "androidapps",
-            "webapps", 
-            "software",
+            "technology",
             "apps",
-            "productivity"
+            "androidapps",
+            "iosapps",
+            "mobileapps",
+            "SomebodyMakeThis",
+            "AppIdeas",
+            "Startup_Ideas",
+            "feature_requests",
+            "Entrepreneur",
+            "SideProject",
+            "indiebiz",
+            "smallbusiness",
+            "startups"
         ]
         self.base_url = "https://www.reddit.com"
         self.posts_per_subreddit = 100
+        logger.info("Reddit Scraper initialized with expanded subreddits for app ideas and complaints.")
         
     async def scrape(self) -> List[Dict[str, Any]]:
         """

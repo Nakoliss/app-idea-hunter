@@ -114,20 +114,23 @@ Respond only with valid JSON, no additional text."""
             # Make API call
             response = await self._call_openai_api(prompt)
             
+            # Log the raw response for debugging
+            logger.debug(f"Raw OpenAI response: {getattr(response.choices[0].message, 'content', str(response))}")
+
             # Parse and validate response
             idea_data = self._parse_response(response)
             
             # Track tokens
             tokens_used = response.usage.total_tokens if response.usage else 0
             self.total_tokens_used += tokens_used
-            idea_data['tokens_used'] = tokens_used
-            
-            logger.debug(f"Generated idea for complaint, tokens used: {tokens_used}")
+            if idea_data is not None:
+                idea_data['tokens_used'] = tokens_used
+                logger.debug(f"Generated idea for complaint, tokens used: {tokens_used}")
             return idea_data
             
         except Exception as e:
             logger.error(f"Error generating idea: {str(e)}")
-            raise
+            return None
     
     async def _call_openai_api(self, prompt: str) -> Any:
         """
@@ -140,12 +143,25 @@ Respond only with valid JSON, no additional text."""
             OpenAI response object
         """
         try:
+            # Ensure the system message emphasizes JSON structure
+            system_message = """You are a startup advisor who analyzes complaints and generates app ideas.
+You MUST respond with ONLY valid JSON matching this exact structure:
+{
+  "idea": "Brief app description (max 35 words)",
+  "score_market": <1-10>,
+  "score_tech": <1-10>,
+  "score_competition": <1-10>,
+  "score_monetisation": <1-10>,
+  "score_feasibility": <1-10>,
+  "score_overall": <1-10>
+}"""
+
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a startup advisor who responds only with valid JSON."
+                        "content": system_message
                     },
                     {
                         "role": "user", 
@@ -154,7 +170,8 @@ Respond only with valid JSON, no additional text."""
                 ],
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
+                seed=42  # For more consistent outputs
             )
             
             return response
@@ -172,7 +189,7 @@ Respond only with valid JSON, no additional text."""
             logger.error(f"Unexpected error calling OpenAI: {str(e)}")
             raise
     
-    def _parse_response(self, response: Any) -> Dict[str, Any]:
+    def _parse_response(self, response: Any) -> Optional[Dict[str, Any]]:
         """
         Parse and validate OpenAI response
         
@@ -189,6 +206,9 @@ Respond only with valid JSON, no additional text."""
             # Extract content
             content = response.choices[0].message.content
             
+            # Log the content for debugging
+            logger.debug(f"Parsing OpenAI content: {content}")
+
             # Parse JSON
             idea_data = json.loads(content)
             
@@ -200,19 +220,22 @@ Respond only with valid JSON, no additional text."""
             
             for field in required_fields:
                 if field not in idea_data:
-                    raise ValueError(f"Missing required field: {field}")
+                    logger.error(f"Missing required field: {field} in response: {content}")
+                    return None
             
             # Validate score ranges
             score_fields = [f for f in required_fields if f.startswith('score_')]
             for field in score_fields:
                 score = idea_data[field]
                 if not isinstance(score, int) or not 1 <= score <= 10:
-                    raise ValueError(f"Invalid score for {field}: {score}")
+                    logger.error(f"Invalid score for {field}: {score} in response: {content}")
+                    return None
             
             # Validate idea text length
             idea_text = idea_data['idea']
             if not isinstance(idea_text, str) or len(idea_text.strip()) == 0:
-                raise ValueError("Idea text cannot be empty")
+                logger.error(f"Idea text cannot be empty in response: {content}")
+                return None
             
             if len(idea_text.split()) > 35:
                 logger.warning(f"Idea text exceeds 35 words: {len(idea_text.split())} words")
@@ -227,12 +250,12 @@ Respond only with valid JSON, no additional text."""
             return idea_data
             
         except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in OpenAI response: {str(e)}")
-            raise ValueError(f"Invalid JSON response: {str(e)}")
+            logger.error(f"Invalid JSON in OpenAI response: {str(e)} | Content: {getattr(response.choices[0].message, 'content', str(response))}")
+            return None
             
         except Exception as e:
-            logger.error(f"Error parsing OpenAI response: {str(e)}")
-            raise
+            logger.error(f"Error parsing OpenAI response: {str(e)} | Response: {getattr(response.choices[0].message, 'content', str(response))}")
+            return None
     
     async def batch_generate_ideas(
         self, 

@@ -18,36 +18,43 @@ class GooglePlayScraper(BaseScraper):
         Initialize Google Play scraper
         
         Args:
-            app_packages: List of app package names to scrape
+            app_packages: List of app package names to scrape (if None, will scrape by categories)
         """
         super().__init__("google_play")
-        self.app_packages = app_packages or [
-            "com.whatsapp",
-            "com.facebook.katana",
-            "com.instagram.android",
-            "com.snapchat.android",
-            "com.twitter.android"
-        ]
+        self.app_packages = None  # Default to None to use category scraping
         self.base_url = "https://play.google.com"
         self.reviews_per_app = 200
+        logger.info("Google Play Scraper initialized to focus on niche apps with 1-3 star ratings.")
+        
+        # Focus on niche apps by targeting less popular or specific category apps later in scrape_category_apps
+        logger.info("Google Play Scraper initialized to focus on niche apps with 1-3 star ratings.")
         
     async def scrape(self) -> List[Dict[str, Any]]:
         """
-        Scrape 1-3 star reviews from configured apps
+        Scrape 1-3 star reviews from configured apps or categories for niche focus
         
         Returns:
             List of complaint data dictionaries
         """
         all_complaints = []
         
-        for package_name in self.app_packages:
-            logger.info(f"Scraping reviews for app: {package_name}")
-            
-            # Get reviews for different ratings
-            for rating in [1, 2, 3]:
-                reviews = await self._scrape_app_reviews(package_name, rating)
-                all_complaints.extend(reviews)
-                logger.info(f"Collected {len(reviews)} {rating}-star reviews for {package_name}")
+        if self.app_packages:
+            for package_name in self.app_packages:
+                logger.info(f"Scraping reviews for app: {package_name}")
+                
+                # Get reviews for different ratings
+                for rating in [1, 2, 3]:
+                    reviews = await self._scrape_app_reviews(package_name, rating)
+                    all_complaints.extend(reviews)
+                    logger.info(f"Collected {len(reviews)} {rating}-star reviews for {package_name}")
+        else:
+            # If no specific apps provided, scrape from categories likely to have niche apps
+            categories = ["PRODUCTIVITY", "TOOLS", "LIFESTYLE", "HEALTH_AND_FITNESS"]
+            for category in categories:
+                logger.info(f"Scraping category: {category}")
+                category_complaints = await self.scrape_category_apps(category.lower())
+                all_complaints.extend(category_complaints)
+                logger.info(f"Collected {len(category_complaints)} reviews from {category}")
         
         logger.info(f"Total Google Play complaints collected: {len(all_complaints)}")
         return all_complaints
@@ -69,12 +76,36 @@ class GooglePlayScraper(BaseScraper):
         Returns:
             List of review complaints
         """
-        # Google Play uses a complex AJAX endpoint for reviews
-        # We'll scrape the initial page and extract the token for pagination
+        # Use the reviews endpoint directly with rating filter
+        reviews_url = f"{self.base_url}/store/apps/details?id={package_name}&showAllReviews=true&reviewSort=1&rating={rating}"
+        response = await self._retry_request(reviews_url)
+        if not response:
+            return []
+            
+        # Extract reviews using JSON pattern
+        reviews = []
+        try:
+            # Look for review data in script tags
+            script_tags = re.findall(r'<script[^>]*>(.*?)</script>', response.text, re.DOTALL)
+            for script in script_tags:
+                # Look for review objects
+                review_matches = re.findall(r'\{"reviewId":"[^"]+","reviewerName":"([^"]+)","content":"([^"]+)","rating":(\d+),"timestamp":"([^"]+)"', script)
+                for reviewer, content, stars, timestamp in review_matches:
+                    if int(stars) == rating:  # Verify rating matches
+                        reviews.append({
+                            "source": self.source_name,
+                            "content": content.replace('\\n', '\n').replace('\\"', '"'),
+                            "metadata": {
+                                "package_name": package_name,
+                                "rating": int(stars),
+                                "review_date": timestamp,
+                                "reviewer": reviewer
+                            }
+                        })
+        except Exception as e:
+            logger.error(f"Error parsing reviews for {package_name}: {str(e)}")
         
-        app_url = f"{self.base_url}/store/apps/details?id={package_name}"
-        reviews = await self._fetch_reviews_from_page(app_url, package_name, rating)
-        
+        logger.info(f"Found {len(reviews)} {rating}-star reviews for {package_name}")
         return reviews[:self.reviews_per_app]  # Limit to configured amount
     
     async def _fetch_reviews_from_page(
@@ -108,74 +139,71 @@ class GooglePlayScraper(BaseScraper):
         target_rating: int = None
     ) -> List[Dict[str, Any]]:
         """
-        Parse Google Play page to extract reviews
+        Parse Google Play response to extract reviews
         
         Args:
-            response: HTTP response from Google Play
-            url: URL that was scraped
+            response: HTTP response
+            url: Request URL
             package_name: App package name
-            target_rating: Target rating to filter (1-3)
+            target_rating: Target star rating to filter
             
         Returns:
-            List of parsed complaint data
+            List of review complaints
         """
         complaints = []
         
-        try:
-            html_content = response.text
-            
-            # Extract app name from the page
-            app_name_match = re.search(r'"name":"([^"]+)"', html_content)
-            app_name = app_name_match.group(1) if app_name_match else package_name
-            
-            # Look for review data in script tags
-            # Google Play stores review data in JSON within script tags
-            review_pattern = r'"gp:AOqpTOH[^"]*","([^"]+)","([^"]*)",(\d+),[^,]*,[^,]*,"([^"]*)"'
-            
-            matches = re.findall(review_pattern, html_content)
-            
-            for match in matches:
-                try:
-                    reviewer_name = match[0]
-                    review_text = match[1]
-                    rating = int(match[2])
-                    review_date = match[3]
-                    
-                    # Filter by target rating (1-3 stars)
-                    if target_rating and rating != target_rating:
-                        continue
-                        
-                    if rating > 3:  # Only negative reviews
-                        continue
-                    
-                    # Skip empty or very short reviews
-                    if not review_text or len(review_text.strip()) < 10:
-                        continue
-                    
-                    complaints.append({
-                        'content': review_text.strip(),
-                        'source': self.source_name,
-                        'source_url': url,
-                        'metadata': {
-                            'app_name': app_name,
-                            'package_name': package_name,
-                            'reviewer': reviewer_name,
-                            'rating': rating,
-                            'review_date': review_date,
-                            'type': 'review'
-                        }
-                    })
-                    
-                except (ValueError, IndexError) as e:
-                    logger.debug(f"Error parsing review match: {str(e)}")
-                    continue
-            
-            # Alternative parsing method - look for different patterns
-            if not complaints:
-                complaints.extend(self._parse_alternative_format(html_content, url, package_name, app_name))
+        # Extract app name if available
+        app_name_match = re.search(r'<title[^>]*>([^<]+) - Apps on Google Play</title>', response.text)
+        app_name = app_name_match.group(1) if app_name_match else package_name
         
-        except Exception as e:
-            logger.error(f"Error parsing Google Play response from {url}: {str(e)}")
+        # Try to find reviews in the response
+        review_blocks = re.findall(r'<div class="[^"]*review-body[^"]*"[^>]*>.*?</div>', response.text, re.DOTALL)
+        if not review_blocks:
+            # Try alternative format
+            return self._parse_alternative_format(response.text, url, package_name, app_name)
+        
+        for block in review_blocks:
+            # Extract rating
+            rating_match = re.search(r'<div class="[^"]*star-rating[^"]*"[^>]*>.*?<div class="[^"]*tiny-star[^"]*"[^>]*aria-label="[^"]*Rated (\d) star', block, re.DOTALL)
+            if not rating_match:
+                continue
+            
+            rating = int(rating_match.group(1))
+            if target_rating and rating != target_rating:
+                continue
+            
+            # Only process 1-3 star reviews
+            if rating > 3:
+                continue
+            
+            # Extract review text
+            text_match = re.search(r'<span[^>]*jsname="[^"]*"[^>]*>(.*?)</span>', block, re.DOTALL)
+            if not text_match:
+                continue
+            
+            content = text_match.group(1).strip()
+            if not content:
+                continue
+            
+            # Check if the review contains ideas or feature requests
+            idea_keywords = ["i wish", "would be great", "should have", "needs to", "if only", "please add", "can you add", "hope they add"]
+            is_idea = any(keyword in content.lower() for keyword in idea_keywords)
+            
+            # Extract date if possible
+            date_match = re.search(r'<span class="[^"]*review-date[^"]*"[^>]*>(.*?)</span>', block)
+            date_str = date_match.group(1) if date_match else ""
+            
+            complaints.append({
+                "source": self.source_name,
+                "content": content,
+                "metadata": {
+                    "app_name": app_name,
+                    "package_name": package_name,
+                    "rating": rating,
+                    "review_date": date_str,
+                    "is_idea": is_idea
+                }
+            })
         
         return complaints
     

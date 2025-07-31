@@ -10,6 +10,9 @@ import pythonjsonlogger.jsonlogger
 
 from app.config import get_settings
 
+# Global logger instance
+logger = logging.getLogger(__name__)
+
 
 class CustomJsonFormatter(pythonjsonlogger.jsonlogger.JsonFormatter):
     """Custom JSON formatter with additional fields"""
@@ -49,14 +52,14 @@ def setup_logging() -> None:
         'handlers': {
             'console': {
                 'class': 'logging.StreamHandler',
-                'level': settings.log_level,
-                'formatter': 'json' if settings.environment == 'production' else 'standard',
+                'level': settings.LOG_LEVEL,
+                'formatter': 'json' if settings.ENVIRONMENT == 'production' else 'standard',
                 'stream': sys.stdout
             }
         },
         'loggers': {
             'app': {
-                'level': settings.log_level,
+                'level': settings.LOG_LEVEL,
                 'handlers': ['console'],
                 'propagate': False
             },
@@ -72,7 +75,7 @@ def setup_logging() -> None:
             }
         },
         'root': {
-            'level': settings.log_level,
+            'level': settings.LOG_LEVEL,
             'handlers': ['console']
         }
     }
@@ -84,7 +87,7 @@ def setup_logging() -> None:
     logger.info(
         "Logging configured",
         extra={
-            'log_level': settings.log_level,
-            'environment': settings.environment
+            'log_level': settings.LOG_LEVEL,
+            'environment': settings.ENVIRONMENT
         }
     )

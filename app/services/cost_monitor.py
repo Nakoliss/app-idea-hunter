@@ -15,16 +15,17 @@ class CostMonitor:
     
     def __init__(self):
         """Initialize cost monitor"""
-        self.max_tokens_per_complaint = settings.max_tokens_per_complaint
+        self.max_tokens_per_complaint = settings.MAX_TOKENS_PER_COMPLAINT
         self.usage_history: List[Dict[str, Any]] = []
         self.cost_per_1k_tokens = 0.002  # GPT-3.5-turbo pricing
         self.daily_usage_limit = 100.0  # $100 daily limit
+        self.weekly_usage_limit = 25.0  # $25 weekly limit (NEW)
         self.sample_file = Path("sample_tokens.json")
         
         # Load historical usage if available
         self._load_usage_history()
         
-        logger.info(f"Cost monitor initialized with {self.max_tokens_per_complaint} token limit per complaint")
+        logger.info(f"Cost monitor initialized with {self.max_tokens_per_complaint} token limit per complaint and $25/week limit")
     
     def _load_usage_history(self):
         """Load usage history from file if it exists"""
@@ -195,6 +196,25 @@ class CostMonitor:
         
         return result
     
+    def check_weekly_limit(self) -> Dict[str, Any]:
+        """
+        Check if weekly spending limit is exceeded
+        Returns:
+            Dictionary with weekly limit check results
+        """
+        weekly_cost = self.get_total_cost(days=7)
+        limit_exceeded = weekly_cost >= self.weekly_usage_limit
+        result = {
+            'weekly_cost': weekly_cost,
+            'weekly_limit': self.weekly_usage_limit,
+            'limit_exceeded': limit_exceeded,
+            'remaining_budget': max(0, self.weekly_usage_limit - weekly_cost),
+            'check_timestamp': datetime.utcnow().isoformat()
+        }
+        if limit_exceeded:
+            logger.warning(f"WEEKLY cost limit exceeded: ${weekly_cost:.2f} >= ${self.weekly_usage_limit}")
+        return result
+    
     def get_usage_statistics(self, days: int = 7) -> Dict[str, Any]:
         """
         Get comprehensive usage statistics
@@ -255,15 +275,28 @@ class CostMonitor:
         daily_check = self.check_daily_limit()
         if daily_check['limit_exceeded']:
             logger.error("Daily cost limit exceeded, stopping processing")
+            self.last_limit_reason = "Daily cost limit exceeded. Please try again tomorrow."
             return False
-        
+        # Check weekly limit (NEW)
+        weekly_check = self.check_weekly_limit()
+        if weekly_check['limit_exceeded']:
+            logger.error("Weekly cost limit exceeded, stopping processing")
+            self.last_limit_reason = "Weekly cost limit ($25) exceeded. Please try again next week."
+            return False
         # Check cost guard
         cost_guard = self.check_cost_guard()
         if not cost_guard['passed']:
             logger.error("Cost guard threshold exceeded, stopping processing")
+            self.last_limit_reason = "Cost guard threshold exceeded. Please contact support."
             return False
-        
+        self.last_limit_reason = None
         return True
+    
+    def get_last_limit_reason(self) -> Optional[str]:
+        """
+        Get the last reason for stopping processing (for UI warning)
+        """
+        return getattr(self, 'last_limit_reason', None)
     
     def estimate_batch_cost(self, complaint_count: int) -> Dict[str, Any]:
         """

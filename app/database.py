@@ -25,11 +25,24 @@ class DatabaseManager:
 
         try:
             # Create async engine with connection pooling
+            # Convert postgres:// to postgresql+asyncpg:// if needed
+            db_url = settings.DATABASE_URL
+            if db_url.startswith("postgres://"):
+                db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+            elif not db_url.startswith("postgresql+asyncpg://"):
+                if db_url.startswith("postgresql://"):
+                    db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            
             self.engine = create_async_engine(
-                settings.database_url,
-                echo=settings.database_echo,
+                db_url,
+                echo=settings.DATABASE_ECHO,
                 poolclass=NullPool,  # Use NullPool for serverless environments
                 pool_pre_ping=True,  # Test connections before using
+                connect_args={
+                    "ssl": "require",  # Require SSL connection
+                    "prepared_statement_cache_size": 0,  # Disable prepared statements
+                    "statement_cache_size": 0,
+                }
             )
 
             # Create session factory
@@ -38,9 +51,9 @@ class DatabaseManager:
             )
 
             # Initialize Supabase client if URL and key are provided
-            if settings.supabase_url and settings.supabase_service_key:
+            if settings.SUPABASE_URL and settings.SUPABASE_SERVICE_KEY:
                 self.supabase_client = create_client(
-                    settings.supabase_url, settings.supabase_service_key
+                    settings.SUPABASE_URL, settings.SUPABASE_SERVICE_KEY
                 )
 
             # Create tables if they don't exist
