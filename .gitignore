@@ -191,5 +191,8 @@ Thumbs.db
 data/
 scraped_data/
 
+# History files (may contain sensitive data)
+.history/
+
 # Kiro IDE files (optional - you may want to keep these)
 # .kiro/
